@@ -8,7 +8,10 @@
 import Foundation
 
 public class StandardError: TextOutputStream {
-  public func write(_ string: String) {
-    try? FileHandle.standardError.write(contentsOf: Data(string.utf8))
-  }
+
+    public init() {}
+
+    public func write(_ string: String) {
+        try? FileHandle.standardError.write(contentsOf: Data(string.utf8))
+    }
 }
