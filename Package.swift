@@ -11,13 +11,7 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "StreamDeckKit",
-            swiftSettings: [
-                .unsafeFlags([
-                    "-Xfrontend",
-                    "-enable-experimental-concurrency"
-                ])
-            ]
+            name: "StreamDeckKit"
         ),
         .testTarget(
             name: "StreamDeckKitTests",
