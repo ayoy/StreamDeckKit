@@ -34,7 +34,7 @@ public struct CommandLineParameters {
                     }
                     port = portValue
                 case .ESD.pluginUUIDParameter:
-                    guard UUID(uuidString: value) != nil else {
+                    guard !value.isEmpty else {
                         throw ParameterError.invalidParameter(parameter, value: value)
                     }
                     pluginUUID = value
