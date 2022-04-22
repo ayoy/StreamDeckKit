@@ -23,4 +23,21 @@ final class StreamDeckKitTests: XCTestCase {
         XCTAssertEqual(URL(fileURLWithPath: "/plugin.sdPlugin").pluginPath, "/plugin.sdPlugin")
         XCTAssertEqual(URL(fileURLWithPath: "/plugin.sdPlugin/x").pluginPath, "/plugin.sdPlugin")
     }
+
+    func testCommandLineParametersDictionary() throws {
+
+        let parametersString = "-port 1000 -pluginUUID ABCD0123 -registerEvent abc.abcd -info {}"
+        let parametersArray = parametersString.split(separator: " ").map(String.init)
+        let parametersDict = try parametersArray.commandLineParametersDictionary()
+
+        XCTAssertEqual(
+            parametersDict,
+            [
+                "-port": "1000",
+                "-pluginUUID": "ABCD0123",
+                "-registerEvent": "abc.abcd",
+                "-info": "{}"
+            ]
+        )
+    }
 }

@@ -65,7 +65,13 @@ extension RandomAccessCollection where Element == String {
 
         let parametersDict: [String: String] = {
             var dict: [String: String] = [:]
-            zip(dropFirst(), dropLast()).forEach { dict[$0] = $1 }
+
+            var i = 0
+
+            while i < count {
+                dict[self[index(startIndex, offsetBy: i)]] = self[index(startIndex, offsetBy: i+1)]
+                i += 2
+            }
 
             return dict
         }()
