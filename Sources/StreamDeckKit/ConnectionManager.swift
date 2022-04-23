@@ -123,59 +123,56 @@ public final class ConnectionManager {
         await sendMessage(message)
     }
 
-    private func handleEvent(_ event: String, data: Data, json: [String: Any]) {
+    private func handleEvent(_ event: ReceivedEvent, data: Data, json: [String: Any]) {
 
         do {
             switch event {
-            case .ESD.eventKeyDown:
+            case .keyDown:
                 let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
                 delegate?.keyDown(message)
 
-            case .ESD.eventKeyUp:
+            case .keyUp:
                 let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
                 delegate?.keyUp(message)
 
-            case .ESD.eventWillAppear:
+            case .willAppear:
                 let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
                 delegate?.willAppear(message)
 
-            case .ESD.eventWillDisappear:
+            case .willDisappear:
                 let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
                 delegate?.willDisappear(message)
 
-            case .ESD.eventTitleParametersDidChange:
+            case .titleParametersDidChange:
                 let message = try jsonDecoder.decode(IncomingMessage.TitleParametersDidChange.self, from: data)
                 delegate?.titleParametersDidChange(message)
 
-            case .ESD.eventDeviceDidConnect:
+            case .deviceDidConnect:
                 let message = try jsonDecoder.decode(IncomingMessage.DeviceDidConnect.self, from: data)
                 delegate?.deviceDidConnect(message)
 
-            case .ESD.eventDeviceDidDisconnect:
+            case .deviceDidDisconnect:
                 let message = try jsonDecoder.decode(IncomingMessage.DeviceDidDisconnect.self, from: data)
                 delegate?.deviceDidDisconnect(message)
 
-            case .ESD.eventApplicationDidLaunch:
+            case .applicationDidLaunch:
                 let message = try jsonDecoder.decode(IncomingMessage.Application.self, from: data)
                 delegate?.applicationDidLaunch(message)
 
-            case .ESD.eventApplicationDidTerminate:
+            case .applicationDidTerminate:
                 let message = try jsonDecoder.decode(IncomingMessage.Application.self, from: data)
                 delegate?.applicationDidTerminate(message)
 
-            case .ESD.eventSystemDidWakeUp:
+            case .systemDidWakeUp:
                 delegate?.systemDidWakeUp()
 
-            case .ESD.eventPropertyInspectorDidAppear:
+            case .propertyInspectorDidAppear:
                 let message = try jsonDecoder.decode(IncomingMessage.PropertyInspectorInfo.self, from: data)
                 delegate?.propertyInspectorDidAppear(message)
 
-            case .ESD.eventPropertyInspectorDidDisappear:
+            case .propertyInspectorDidDisappear:
                 let message = try jsonDecoder.decode(IncomingMessage.PropertyInspectorInfo.self, from: data)
                 delegate?.propertyInspectorDidDisappear(message)
-
-            default:
-                break
             }
 
         } catch {
@@ -184,7 +181,7 @@ public final class ConnectionManager {
                     "Error while decoding message for %{public}s event: %{public}s",
                     log: .streamDeckKit,
                     type: .error,
-                    event, decodingError.localizedDescription
+                    event.rawValue, decodingError.localizedDescription
                 )
             }
         }
@@ -200,7 +197,8 @@ public final class ConnectionManager {
                     os_log("Received data message: %{public}s", log: .streamDeckKit, type: .error, String(reflecting: String(bytes: data, encoding: .utf8)))
 
                     guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let event = json[.ESD.commonEvent] as? String
+                          let eventRawValue = json[.ESD.commonEvent] as? String,
+                          let event = ReceivedEvent(rawValue: eventRawValue)
                     else {
                         os_log("Incoming message missing 'event' field", log: .streamDeckKit, type: .error)
                         break
@@ -213,7 +211,8 @@ public final class ConnectionManager {
 
                     guard let data = stringData.data(using: .utf8),
                           let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let event = json[.ESD.commonEvent] as? String
+                          let eventRawValue = json[.ESD.commonEvent] as? String,
+                          let event = ReceivedEvent(rawValue: eventRawValue)
                     else {
                         os_log("Incoming message missing 'event' field", log: .streamDeckKit, type: .error)
                         break
