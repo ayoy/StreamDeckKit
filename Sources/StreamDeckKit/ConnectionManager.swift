@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 
 public final class ConnectionManager {
 
@@ -22,7 +23,7 @@ public final class ConnectionManager {
             throw InitError.invalidInfo
         }
 
-        self.urlSession = URLSession(configuration: .default, delegate: sessionDelegate, delegateQueue: operationQueue)
+        urlSession = URLSession(configuration: .default, delegate: sessionDelegate, delegateQueue: operationQueue)
 
         self.port = port
         self.pluginUUID = pluginUUID
@@ -37,7 +38,7 @@ public final class ConnectionManager {
         devicesInfo = infoJSON[.ESD.devicesInfo] as? String
 
         let request = URLRequest(url: .init(string: "ws://127.0.0.1:\(port)")!)
-        socket = URLSession.shared.webSocketTask(with: request)
+        socket = urlSession.webSocketTask(with: request)
 
         sessionDelegate.connectionManager = self
 
@@ -101,56 +102,91 @@ public final class ConnectionManager {
     private let urlSession: URLSession
     private let sessionDelegate: SessionDelegate = .init()
     private let socket: URLSessionWebSocketTask
+    private var jsonDecoder = JSONDecoder()
 
     private func sendMessage<M: Message & Encodable>(_ message: M) async {
         guard let jsonData = try? JSONEncoder().encode(message) else {
-            print("Failed to serialize message \(message.event): serialization error", to: &Current.standardError)
+            os_log("Failed to serialize message %{public}s ", log: .streamDeckKit, type: .error, message.event)
             return
         }
 
         do {
             try await socket.send(.data(jsonData))
         } catch let error {
-            print("Failed to send message \(message.event): \(error.localizedDescription)", to: &Current.standardError)
+            os_log("Failed to send message %{public}s: ${public}s", log: .streamDeckKit, type: .error, message.event, error.localizedDescription)
         }
     }
 
     fileprivate func registerPlugin() async {
         let message = RegisterPluginMessage(event: registerEvent, uuid: pluginUUID)
+        os_log("Registering plugin %{public}s", log: .streamDeckKit, type: .debug, pluginUUID)
         await sendMessage(message)
     }
 
-    private func handleIncomingMessage(_ message: [String: Any]) {
-        guard let event = message[.ESD.commonEvent] as? String,
-                let context = message[.ESD.commonContext] as? String,
-                let action = message[.ESD.commonAction] as? String,
-                let payload = message[.ESD.commonPayload] as? [AnyHashable: Any],
-                let deviceID = message[.ESD.commonDevice] as? String
-        else {
-            print("Message incomplete", to: &Current.standardError)
-            return
-        }
+    private func handleEvent(_ event: String, data: Data, json: [String: Any]) {
 
-        switch event {
-        case .ESD.eventKeyDown:
-            delegate?.keyDown(forAction: action, withContext: context, withPayload: payload, forDevice: deviceID)
-        case .ESD.eventKeyUp:
-            delegate?.keyUp(forAction: action, withContext: context, withPayload: payload, forDevice: deviceID)
-        case .ESD.eventWillAppear:
-            delegate?.willAppear(forAction: action, withContext: context, withPayload: payload, forDevice: deviceID)
-        case .ESD.eventWillDisappear:
-            delegate?.willDisappear(forAction: action, withContext: context, withPayload: payload, forDevice: deviceID)
-        case .ESD.eventDeviceDidConnect:
-            let deviceInfo: [AnyHashable: Any] = message[.ESD.commonDeviceInfo] as? [AnyHashable: Any] ?? [:]
-            delegate?.deviceDidConnect(deviceID, withDeviceInfo: deviceInfo)
-        case .ESD.eventDeviceDidDisconnect:
-            delegate?.deviceDidDisconnect(deviceID)
-        case .ESD.eventApplicationDidLaunch:
-            delegate?.applicationDidLaunch(payload)
-        case .ESD.eventApplicationDidTerminate:
-            delegate?.applicationDidTerminate(payload)
-        default:
-            break
+        do {
+            switch event {
+            case .ESD.eventKeyDown:
+                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
+                delegate?.keyDown(message)
+
+            case .ESD.eventKeyUp:
+                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
+                delegate?.keyUp(message)
+
+            case .ESD.eventWillAppear:
+                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
+                delegate?.willAppear(message)
+
+            case .ESD.eventWillDisappear:
+                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
+                delegate?.willDisappear(message)
+
+            case .ESD.eventTitleParametersDidChange:
+                let message = try jsonDecoder.decode(IncomingMessage.TitleParametersDidChange.self, from: data)
+                delegate?.titleParametersDidChange(message)
+
+            case .ESD.eventDeviceDidConnect:
+                let message = try jsonDecoder.decode(IncomingMessage.DeviceDidConnect.self, from: data)
+                delegate?.deviceDidConnect(message)
+
+            case .ESD.eventDeviceDidDisconnect:
+                let message = try jsonDecoder.decode(IncomingMessage.DeviceDidDisconnect.self, from: data)
+                delegate?.deviceDidDisconnect(message)
+
+            case .ESD.eventApplicationDidLaunch:
+                let message = try jsonDecoder.decode(IncomingMessage.Application.self, from: data)
+                delegate?.applicationDidLaunch(message)
+
+            case .ESD.eventApplicationDidTerminate:
+                let message = try jsonDecoder.decode(IncomingMessage.Application.self, from: data)
+                delegate?.applicationDidTerminate(message)
+
+            case .ESD.eventSystemDidWakeUp:
+                delegate?.systemDidWakeUp()
+
+            case .ESD.eventPropertyInspectorDidAppear:
+                let message = try jsonDecoder.decode(IncomingMessage.PropertyInspectorInfo.self, from: data)
+                delegate?.propertyInspectorDidAppear(message)
+
+            case .ESD.eventPropertyInspectorDidDisappear:
+                let message = try jsonDecoder.decode(IncomingMessage.PropertyInspectorInfo.self, from: data)
+                delegate?.propertyInspectorDidDisappear(message)
+
+            default:
+                break
+            }
+
+        } catch {
+            if let decodingError = error as? DecodingError {
+                os_log(
+                    "Error while decoding message for %{public}s event: %{public}s",
+                    log: .streamDeckKit,
+                    type: .error,
+                    event, decodingError.localizedDescription
+                )
+            }
         }
     }
 
@@ -161,21 +197,38 @@ public final class ConnectionManager {
 
                 switch message {
                 case let .data(data):
-                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        handleIncomingMessage(json)
+                    os_log("Received data message: %{public}s", log: .streamDeckKit, type: .error, String(reflecting: String(bytes: data, encoding: .utf8)))
+
+                    guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          let event = json[.ESD.commonEvent] as? String
+                    else {
+                        os_log("Incoming message missing 'event' field", log: .streamDeckKit, type: .error)
+                        break
                     }
+
+                    handleEvent(event, data: data, json: json)
+
                 case let .string(stringData):
-                    if let data = stringData.data(using: .utf8), let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        handleIncomingMessage(json)
+                    os_log("Received string message: %{public}s ", log: .streamDeckKit, type: .error, String(reflecting: stringData))
+
+                    guard let data = stringData.data(using: .utf8),
+                          let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          let event = json[.ESD.commonEvent] as? String
+                    else {
+                        os_log("Incoming message missing 'event' field", log: .streamDeckKit, type: .error)
+                        break
                     }
+
+                    handleEvent(event, data: data, json: json)
+
                 @unknown default:
                     break
                 }
+                readFromSocket()
 
             } catch {
-                print("Error reading from socket: \(error.localizedDescription)", to: &Current.standardError)
+                os_log("Error reading from socket: %{public}s ", log: .streamDeckKit, type: .error, error.localizedDescription)
             }
-            readFromSocket()
         }
     }
 }
@@ -201,7 +254,13 @@ class SessionDelegate: NSObject, URLSessionDelegate, URLSessionWebSocketDelegate
             exit(0)
         default:
             let reasonString: String = reason.flatMap({ String.init(data: $0, encoding: .utf8) }) ?? ""
-            print("Websocket closed unexpectedly (code \(closeCode), reason: \(reasonString)", to: &Current.standardError)
+            os_log(
+                "Websocket closed unexpectedly (code %{public}s, reason: %{public}s",
+                log: .app,
+                type: .error,
+                closeCode.rawValue,
+                reasonString
+            )
         }
     }
 }

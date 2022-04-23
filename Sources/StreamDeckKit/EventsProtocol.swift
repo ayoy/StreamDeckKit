@@ -13,58 +13,24 @@ public protocol EventsProtocol: AnyObject {
 
     var connectionManager: ConnectionManager? { get set }
 
-    func keyDown(
-        forAction action: String,
-        withContext context: Context,
-        withPayload payload: [AnyHashable: Any],
-        forDevice deviceID: String
-    )
+    func keyDown(_ message: IncomingMessage.KeyInfo)
+    func keyUp(_ message: IncomingMessage.KeyInfo)
 
-    func keyUp(
-        forAction action: String,
-        withContext context: Context,
-        withPayload payload: [AnyHashable: Any],
-        forDevice deviceID: String
-    )
+    func willAppear(_ message: IncomingMessage.KeyInfo)
+    func willDisappear(_ message: IncomingMessage.KeyInfo)
 
-    func willAppear(
-        forAction action: String,
-        withContext context: Context,
-        withPayload payload: [AnyHashable: Any],
-        forDevice deviceID: String
-    )
+    func titleParametersDidChange(_ message: IncomingMessage.TitleParametersDidChange)
 
-    func willDisappear(
-        forAction action: String,
-        withContext context: Context,
-        withPayload payload: [AnyHashable: Any],
-        forDevice deviceID: String
-    )
+    func deviceDidConnect(_ message: IncomingMessage.DeviceDidConnect)
+    func deviceDidDisconnect(_ message: IncomingMessage.DeviceDidDisconnect)
 
-    func propertyInspectorDidAppear(
-        forAction action: String,
-        withContext context: Context,
-        withPayload payload: [AnyHashable: Any],
-        forDevice deviceID: String
-    )
+    func applicationDidLaunch(_ message: IncomingMessage.Application)
+    func applicationDidTerminate(_ message: IncomingMessage.Application)
 
-    func propertyInspectorDidDisappear(
-        forAction action: String,
-        withContext context: Context,
-        withPayload payload: [AnyHashable: Any],
-        forDevice deviceID: String
-    )
+    func systemDidWakeUp()
 
-    func sendToPlugin(
-        forAction action: String,
-        withContext context: Context,
-        withPayload payload: [AnyHashable: Any],
-        forDevice deviceID: String
-    )
+    func propertyInspectorDidAppear(_ message: IncomingMessage.PropertyInspectorInfo)
+    func propertyInspectorDidDisappear(_ message: IncomingMessage.PropertyInspectorInfo)
 
-    func deviceDidConnect(_ deviceID: String, withDeviceInfo deviceInfo: [AnyHashable: Any])
-    func deviceDidDisconnect(_ deviceID: String)
-
-    func applicationDidLaunch(_ applicationInfo: [AnyHashable: Any])
-    func applicationDidTerminate(_ applicationInfo: [AnyHashable: Any])
+    func sendToPlugin(_ message: IncomingMessage.SendToPlugin)
 }

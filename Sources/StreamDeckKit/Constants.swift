@@ -7,13 +7,13 @@
 
 import Foundation
 
-public enum Target: Int32, Encodable {
+public enum Target: Int32, Codable {
     case hardwareAndSoftware = 0
     case hardwareOnly = 1
     case softwareOnly = 2
 }
 
-public enum DeviceType: Int32, Encodable {
+public enum DeviceType: Int32, Codable {
     case streamDeck = 0
     case streamDeckMini = 1
     case streamDeckXL = 2
