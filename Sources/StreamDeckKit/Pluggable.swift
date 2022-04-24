@@ -7,8 +7,6 @@
 
 import Foundation
 
-public typealias Context = String
-
 public protocol Pluggable: AnyObject {
 
     var connectionManager: ConnectionManager? { get set }

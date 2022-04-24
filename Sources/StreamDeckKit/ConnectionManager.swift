@@ -17,6 +17,12 @@ public final class ConnectionManager {
 
     public weak var delegate: Pluggable?
 
+    // MARK: - APIs
+
+    public func send<Event: OutgoingEvent>(_ event: Event) async throws {
+        try await sendMessage(event)
+    }
+
     public init(port: Int, pluginUUID: String, registerEvent: String, info: String, delegate: Pluggable) throws {
         guard let infoData = info.data(using: .utf8),
               let infoJSON = try? JSONSerialization.jsonObject(with: infoData, options: .mutableContainers) as? [String: Any]
@@ -47,48 +53,6 @@ public final class ConnectionManager {
         readFromSocket()
     }
 
-    // MARK: - APIs
-
-    public func setTitle(_ title: String?, withContext context: Context, target: Target) async {
-        let message = SetTitleMessage(title: title, context: context, target: target)
-        await sendMessage(message)
-    }
-
-    public func setImage(_ base64Image: String?, withContext context: Context, target: Target) async {
-        let message = SetImageMessage(base64Image: base64Image, context: context, target: target)
-        await sendMessage(message)
-    }
-
-    public func showAlert(forContext context: Context) async {
-        let message = ShowAlertMessage(context: context)
-        await sendMessage(message)
-    }
-
-    public func showOK(forContext context: Context) async {
-        let message = ShowOKMessage(context: context)
-        await sendMessage(message)
-    }
-
-    public func setSettings(_ settings: [String: String], forContext context: Context) async {
-        let message = SetSettingsMessage(settings: settings, context: context)
-        await sendMessage(message)
-    }
-
-    public func setState(_ state: Int, forContext context: Context) async {
-        let message = SetStateMessage(state: state, context: context)
-        await sendMessage(message)
-    }
-
-    public func logMessage(_ message: String) async {
-        let message = LogMessage(message: message)
-        await sendMessage(message)
-    }
-
-    public func sendToPropertyInspector(_ action: String, context: Context, payload: [String: String]) async {
-        let message = SendToPropertyInspectorMessage(action: action, context: context, payload: payload)
-        await sendMessage(message)
-    }
-
     // MARK: - Private
 
     private let port: Int
@@ -104,35 +68,28 @@ public final class ConnectionManager {
     private let sessionDelegate: SessionDelegate = .init()
     private let socket: URLSessionWebSocketTask
     private var jsonDecoder = JSONDecoder()
+    private var jsonEncoder = JSONEncoder()
 
-    private func sendMessage<M: Message & Encodable>(_ message: M) async {
-        guard let jsonData = try? JSONEncoder().encode(message) else {
-            os_log("Failed to serialize message %{public}s ", log: .streamDeckKit, type: .error, message.event)
-            return
-        }
-
+    private func sendMessage<Message: Encodable>(_ message: Message) async throws {
+        let jsonData = try jsonEncoder.encode(message)
         do {
             try await socket.send(.data(jsonData))
-        } catch let error {
-            os_log("Failed to send message %{public}s: ${public}s", log: .streamDeckKit, type: .error, message.event, error.localizedDescription)
+        } catch {
+            os_log("Failed to send message: ${public}s", log: .streamDeckKit, type: .error, error.localizedDescription)
+            throw error
         }
     }
 
-    fileprivate func registerPlugin() async {
+    fileprivate func registerPlugin() async throws {
         let message = RegisterPluginMessage(event: registerEvent, uuid: pluginUUID)
         os_log("Registering plugin %{public}s", log: .streamDeckKit, type: .debug, pluginUUID)
-        await sendMessage(message)
+        try await sendMessage(message)
     }
 
     private func readFromSocket() {
         Task {
             do {
                 let receivedData = try await socket.receive().data()
-                os_log(
-                    "Received message: %{public}s", log: .streamDeckKit, type: .error,
-                    String(reflecting: String(bytes: receivedData, encoding: .utf8))
-                )
-
                 let event = try jsonDecoder.decode(ReceivedEvent.self, from: receivedData)
                 delegate?.didReceive(event: event)
 
@@ -156,7 +113,11 @@ class SessionDelegate: NSObject, URLSessionDelegate, URLSessionWebSocketDelegate
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
         Task {
-            await connectionManager?.registerPlugin()
+            do {
+                try await connectionManager?.registerPlugin()
+            } catch {
+                os_log("Failed to register plugin: ${public}s", log: .streamDeckKit, type: .error, error.localizedDescription)
+            }
         }
     }
 

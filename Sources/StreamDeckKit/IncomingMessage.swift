@@ -35,19 +35,6 @@ public protocol IncomingMessage: Decodable {}
 
 public struct EmptyMessage: IncomingMessage {}
 
-public struct Settings: IncomingMessage {
-    public let device: String
-    public let action: String
-    public let context: String
-    public let payload: Payload
-
-    public struct Payload: Decodable {
-        public let coordinates: Coordinates
-        public let isInMultiAction: Bool
-        public let settings: [String: String]
-    }
-}
-
 public struct DeviceDidConnect: IncomingMessage {
     public let device: String
     public let deviceInfo: DeviceInfo
@@ -61,7 +48,13 @@ public struct KeyInfo: IncomingMessage {
     public let device: String
     public let action: String
     public let context: String
-    public let payload: Settings.Payload
+    public let payload: Payload
+
+    public struct Payload: Decodable {
+        public let coordinates: Coordinates
+        public let isInMultiAction: Bool
+        public let settings: [String: String]
+    }
 }
 
 public struct PropertyInspectorInfo: IncomingMessage {
