@@ -24,7 +24,7 @@ public extension ExpressibleByIntegerLiteral {
     static var sdkVersion: Self { 2 }
 }
 
-public extension String {
+extension String {
 
     enum ESD {
 

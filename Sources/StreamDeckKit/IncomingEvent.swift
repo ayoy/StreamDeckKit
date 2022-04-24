@@ -9,6 +9,8 @@ import Foundation
 import SwiftUI
 
 public enum IncomingEvent: Decodable {
+    case didReceiveSettings(DidReceiveSettings)
+    case didReceiveGlobalSettings(DidReceiveSettings)
     case keyDown(KeyInfo)
     case keyUp(KeyInfo)
     case willAppear(KeyInfo)
@@ -33,6 +35,10 @@ public enum IncomingEvent: Decodable {
         let type = try container.decode(IncomingEventType.self, forKey: CodingKeys.type)
 
         switch type {
+        case .didReceiveSettings:
+            self = .didReceiveSettings(try .init(from: decoder))
+        case .didReceiveGlobalSettings:
+            self = .didReceiveGlobalSettings(try .init(from: decoder))
         case .keyDown:
             self = .keyDown(try .init(from: decoder))
         case .keyUp:
@@ -64,6 +70,8 @@ public enum IncomingEvent: Decodable {
 }
 
 public enum IncomingEventType: String, Decodable {
+    case didReceiveSettings
+    case didReceiveGlobalSettings
     case keyDown
     case keyUp
     case willAppear
@@ -114,6 +122,30 @@ public struct DeviceDidConnect: IncomingMessage {
 
 public struct DeviceDidDisconnect: IncomingMessage {
     public let device: String
+
+}
+
+public struct DidReceiveSettings: IncomingMessage {
+    public let device: String
+    public let action: String
+    public let context: String
+    public let payload: Payload
+
+    public struct Payload: Decodable {
+        public let coordinates: Coordinates
+        public let isInMultiAction: Bool
+        public let settings: [String: String]
+    }
+}
+
+public struct DidReceiveGlobalSettings: IncomingMessage {
+    public let payload: Payload
+
+    public struct Payload: Decodable {
+        public let coordinates: Coordinates
+        public let isInMultiAction: Bool
+        public let settings: [String: String]
+    }
 }
 
 public struct KeyInfo: IncomingMessage {

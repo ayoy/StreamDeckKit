@@ -10,7 +10,7 @@ import Foundation
 public extension String {
 
     static var pluginPath: String? {
-        let bundle = Bundle.init(for: ConnectionManager.self)
+        let bundle = Bundle.init(for: PluginInterface.self)
 
         return bundle.executableURL?.pluginPath
     }
