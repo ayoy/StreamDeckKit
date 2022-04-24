@@ -22,7 +22,7 @@ public final class PluginInterface {
     }
 
     public private(set) lazy var receivedEventPublisher: AnyPublisher<IncomingEvent, Never> = {
-        receivedEventSubject.eraseToAnyPublisher()
+        connectionManager.receivedEventSubject.eraseToAnyPublisher()
     }()
 
     public init(parameters: CommandLineParameters) throws {
@@ -40,12 +40,8 @@ public final class PluginInterface {
         devicesInfo = infoJSON[.ESD.devicesInfo] as? String
 
         connectionManager = ConnectionManager(parameters: parameters)
-        connectionManager.pluginInterface = self
+        connectionManager.connect()
     }
-
-    // MARK: - Internal
-
-    let receivedEventSubject = PassthroughSubject<IncomingEvent, Never>()
 
     // MARK: - Private
 

@@ -6,17 +6,12 @@
 //
 
 import Foundation
+import Combine
 import os
 
 final class ConnectionManager: NSObject {
 
-    weak var pluginInterface: PluginInterface? {
-        didSet {
-            if pluginInterface != nil {
-                connect()
-            }
-        }
-    }
+    let receivedEventSubject = PassthroughSubject<IncomingEvent, Never>()
 
     func sendMessage<Message: Encodable>(_ message: Message) async throws {
         let jsonData = try jsonEncoder.encode(message)
@@ -34,6 +29,14 @@ final class ConnectionManager: NSObject {
         registerEvent = parameters.registerEvent
     }
 
+    func connect() {
+        let request = URLRequest(url: .init(string: "ws://127.0.0.1:\(port)")!)
+        socket = urlSession.webSocketTask(with: request)
+
+        socket.resume()
+        readFromSocket()
+    }
+
     // MARK: - Private
 
     private lazy var urlSession = URLSession(configuration: .default, delegate: self, delegateQueue: operationQueue)
@@ -47,14 +50,6 @@ final class ConnectionManager: NSObject {
     private var jsonDecoder = JSONDecoder()
     private var jsonEncoder = JSONEncoder()
 
-    private func connect() {
-        let request = URLRequest(url: .init(string: "ws://127.0.0.1:\(port)")!)
-        socket = urlSession.webSocketTask(with: request)
-
-        socket.resume()
-        readFromSocket()
-    }
-
     private func registerPlugin() async throws {
         let message = RegisterPluginMessage(event: registerEvent, uuid: pluginUUID)
         os_log("Registering plugin %{public}s", log: .streamDeckKit, type: .debug, pluginUUID)
@@ -67,7 +62,7 @@ final class ConnectionManager: NSObject {
                 let receivedData = try await socket.receive().data()
                 do {
                     let event = try jsonDecoder.decode(IncomingEvent.self, from: receivedData)
-                    pluginInterface?.receivedEventSubject.send(event)
+                    receivedEventSubject.send(event)
 
                     readFromSocket()
                 } catch {
