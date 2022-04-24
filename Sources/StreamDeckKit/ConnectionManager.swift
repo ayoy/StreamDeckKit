@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import os
 
 public final class ConnectionManager {
@@ -14,9 +15,9 @@ public final class ConnectionManager {
         case invalidInfo
     }
 
-    public weak var delegate: EventsProtocol?
+    public weak var delegate: Pluggable?
 
-    public init(port: Int, pluginUUID: String, registerEvent: String, info: String, delegate: EventsProtocol) throws {
+    public init(port: Int, pluginUUID: String, registerEvent: String, info: String, delegate: Pluggable) throws {
         guard let infoData = info.data(using: .utf8),
               let infoJSON = try? JSONSerialization.jsonObject(with: infoData, options: .mutableContainers) as? [String: Any]
         else {
@@ -123,110 +124,27 @@ public final class ConnectionManager {
         await sendMessage(message)
     }
 
-    private func handleEvent(_ event: ReceivedEvent, data: Data, json: [String: Any]) {
-
-        do {
-            switch event {
-            case .keyDown:
-                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
-                delegate?.keyDown(message)
-
-            case .keyUp:
-                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
-                delegate?.keyUp(message)
-
-            case .willAppear:
-                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
-                delegate?.willAppear(message)
-
-            case .willDisappear:
-                let message = try jsonDecoder.decode(IncomingMessage.KeyInfo.self, from: data)
-                delegate?.willDisappear(message)
-
-            case .titleParametersDidChange:
-                let message = try jsonDecoder.decode(IncomingMessage.TitleParametersDidChange.self, from: data)
-                delegate?.titleParametersDidChange(message)
-
-            case .deviceDidConnect:
-                let message = try jsonDecoder.decode(IncomingMessage.DeviceDidConnect.self, from: data)
-                delegate?.deviceDidConnect(message)
-
-            case .deviceDidDisconnect:
-                let message = try jsonDecoder.decode(IncomingMessage.DeviceDidDisconnect.self, from: data)
-                delegate?.deviceDidDisconnect(message)
-
-            case .applicationDidLaunch:
-                let message = try jsonDecoder.decode(IncomingMessage.Application.self, from: data)
-                delegate?.applicationDidLaunch(message)
-
-            case .applicationDidTerminate:
-                let message = try jsonDecoder.decode(IncomingMessage.Application.self, from: data)
-                delegate?.applicationDidTerminate(message)
-
-            case .systemDidWakeUp:
-                delegate?.systemDidWakeUp()
-
-            case .propertyInspectorDidAppear:
-                let message = try jsonDecoder.decode(IncomingMessage.PropertyInspectorInfo.self, from: data)
-                delegate?.propertyInspectorDidAppear(message)
-
-            case .propertyInspectorDidDisappear:
-                let message = try jsonDecoder.decode(IncomingMessage.PropertyInspectorInfo.self, from: data)
-                delegate?.propertyInspectorDidDisappear(message)
-            }
-
-        } catch {
-            if let decodingError = error as? DecodingError {
-                os_log(
-                    "Error while decoding message for %{public}s event: %{public}s",
-                    log: .streamDeckKit,
-                    type: .error,
-                    event.rawValue, decodingError.localizedDescription
-                )
-            }
-        }
-    }
-
     private func readFromSocket() {
         Task {
             do {
-                let message = try await socket.receive()
+                let receivedData = try await socket.receive().data()
+                os_log(
+                    "Received message: %{public}s", log: .streamDeckKit, type: .error,
+                    String(reflecting: String(bytes: receivedData, encoding: .utf8))
+                )
 
-                switch message {
-                case let .data(data):
-                    os_log("Received data message: %{public}s", log: .streamDeckKit, type: .error, String(reflecting: String(bytes: data, encoding: .utf8)))
+                let event = try jsonDecoder.decode(ReceivedEvent.self, from: receivedData)
+                delegate?.didReceive(event: event)
 
-                    guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let eventRawValue = json[.ESD.commonEvent] as? String,
-                          let event = ReceivedEvent(rawValue: eventRawValue)
-                    else {
-                        os_log("Incoming message missing 'event' field", log: .streamDeckKit, type: .error)
-                        break
-                    }
-
-                    handleEvent(event, data: data, json: json)
-
-                case let .string(stringData):
-                    os_log("Received string message: %{public}s ", log: .streamDeckKit, type: .error, String(reflecting: stringData))
-
-                    guard let data = stringData.data(using: .utf8),
-                          let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let eventRawValue = json[.ESD.commonEvent] as? String,
-                          let event = ReceivedEvent(rawValue: eventRawValue)
-                    else {
-                        os_log("Incoming message missing 'event' field", log: .streamDeckKit, type: .error)
-                        break
-                    }
-
-                    handleEvent(event, data: data, json: json)
-
-                @unknown default:
-                    break
-                }
                 readFromSocket()
 
             } catch {
-                os_log("Error reading from socket: %{public}s ", log: .streamDeckKit, type: .error, error.localizedDescription)
+                switch error {
+                case let decodingError as DecodingError:
+                    os_log("Error while decoding event: %{public}s", log: .streamDeckKit, type: .error, decodingError.localizedDescription)
+                default:
+                    os_log("Error reading from socket: %{public}s ", log: .streamDeckKit, type: .error, error.localizedDescription)
+                }
             }
         }
     }
@@ -260,6 +178,33 @@ class SessionDelegate: NSObject, URLSessionDelegate, URLSessionWebSocketDelegate
                 closeCode.rawValue,
                 reasonString
             )
+        }
+    }
+}
+
+private extension ConnectionManager {
+    struct IncomingMessageDecodingError: Error {}
+}
+
+extension URLSessionWebSocketTask.Message {
+    func data() throws -> Data {
+        switch self {
+        case let .data(data):
+            os_log("Received data message: %{public}s", log: .streamDeckKit, type: .error, String(reflecting: String(bytes: data, encoding: .utf8)))
+            return data
+
+        case let .string(stringData):
+            os_log("Received string message: %{public}s ", log: .streamDeckKit, type: .error, String(reflecting: stringData))
+
+            guard let data = stringData.data(using: .utf8) else {
+                os_log("Failed to encode string data", log: .streamDeckKit, type: .error)
+                throw ConnectionManager.IncomingMessageDecodingError()
+            }
+
+            return data
+
+        @unknown default:
+            throw ConnectionManager.IncomingMessageDecodingError()
         }
     }
 }
