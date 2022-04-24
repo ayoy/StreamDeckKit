@@ -11,5 +11,5 @@ public protocol Pluggable: AnyObject {
 
     var connectionManager: ConnectionManager? { get set }
 
-    func didReceive(event: ReceivedEvent)
+    func didReceive(event: IncomingEvent)
 }

@@ -90,7 +90,7 @@ public final class ConnectionManager {
         Task {
             do {
                 let receivedData = try await socket.receive().data()
-                let event = try jsonDecoder.decode(ReceivedEvent.self, from: receivedData)
+                let event = try jsonDecoder.decode(IncomingEvent.self, from: receivedData)
                 delegate?.didReceive(event: event)
 
                 readFromSocket()
