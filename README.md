@@ -1,5 +1,6 @@
 # StreamDeckKit
 
+[![Unit tests](https://github.com/ayoy/StreamDeckKit/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/ayoy/StreamDeckKit/actions/workflows/unit-tests.yml)
 [![SwiftLint](https://github.com/ayoy/StreamDeckKit/actions/workflows/swiftlint.yml/badge.svg)](https://github.com/ayoy/StreamDeckKit/actions/workflows/swiftlint.yml)
 
 
