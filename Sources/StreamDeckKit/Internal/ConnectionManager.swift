@@ -16,6 +16,7 @@ final class ConnectionManager: NSObject {
     func sendMessage<Message: Encodable>(_ message: Message) async throws {
         let jsonData = try jsonEncoder.encode(message)
         do {
+            os_log("Sending message: %{public}s", log: .streamDeckKit, type: .error, String(reflecting: String(bytes: jsonData, encoding: .utf8)))
             try await socket.send(.data(jsonData))
         } catch {
             os_log("Failed to send message: ${public}s", log: .streamDeckKit, type: .error, error.localizedDescription)

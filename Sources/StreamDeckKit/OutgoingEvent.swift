@@ -50,7 +50,7 @@ public struct SetSettings: ContextEvent {
 
 public struct GetSettings: ContextEvent {
 
-    init(context: Context) {
+    public init(context: Context) {
         self.context = context
     }
 
@@ -188,9 +188,9 @@ public struct ShowOK: ContextEvent {
     let context: Context
 }
 
-public struct SendToPropertyInspector: ContextEvent {
+public struct SendToPropertyInspector<Payload: Encodable>: ContextEvent {
 
-    public init(action: String, context: Context, payload: [String: String]) {
+    public init(action: String, context: Context, payload: Payload) {
         self.action = action
         self.context = context
         self.payload = payload
@@ -199,7 +199,7 @@ public struct SendToPropertyInspector: ContextEvent {
     public let event: OutgoingEventType = .sendToPropertyInspector
     let action: String
     let context: Context
-    let payload: [String: String]
+    let payload: Payload
 }
 
 // MARK: - Internal
