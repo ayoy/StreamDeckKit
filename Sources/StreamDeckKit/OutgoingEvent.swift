@@ -17,12 +17,12 @@ public enum OutgoingEventType: String, Encodable {
     case getSettings
     case setGlobalSettings
     case getGlobalSettings
-    case openURL
+    case openUrl
     case logMessage
     case setTitle
     case setImage
     case showAlert
-    case showOK
+    case showOk
     case setState
     case switchToProfile
     case sendToPropertyInspector
@@ -86,7 +86,7 @@ struct OpenURL: OutgoingEvent {
         payload = .init(url: url.absoluteString)
     }
 
-    public let event: OutgoingEventType = .openURL
+    public let event: OutgoingEventType = .openUrl
     let payload: Payload
 
     struct Payload: Encodable {
@@ -176,6 +176,16 @@ public struct SwitchToProfile: ContextEvent {
     struct Payload: Encodable {
         let profile: String
     }
+}
+
+public struct ShowOK: ContextEvent {
+
+    public init(context: Context) {
+        self.context = context
+    }
+
+    public let event: OutgoingEventType = .showOk
+    let context: Context
 }
 
 public struct SendToPropertyInspector: ContextEvent {
